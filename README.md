@@ -110,3 +110,4 @@ MomentoBooth [uses the awesome Weblate](https://hosted.weblate.org/engage/moment
 | 🇳🇱 Dutch | ✅ Fully checked |
 | 🇫🇷 French | Mostly checked |
 | 🇩🇪 German | ⚠️ Unchecked |
+# bobibooth
