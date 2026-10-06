@@ -25,6 +25,7 @@ import 'package:momento_booth/views/photo_booth_screen/screens/photo_details_scr
 import 'package:momento_booth/views/photo_booth_screen/screens/share_screen/share_screen.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/single_capture_screen/single_capture_screen.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/start_screen/start_screen.dart';
+import 'package:momento_booth/views/photo_booth_screen/screens/template_screen/template_screen.dart';
 import 'package:momento_booth/views/settings_overlay/settings_overlay.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart' show WindowListener, windowManager;

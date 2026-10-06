@@ -19,6 +19,7 @@ abstract class NavigationScreenViewModelBase extends ScreenViewModelBase with St
   bool get enableSingleCapture => getIt<ProjectManager>().settings.enableSingleCapture;
   bool get enableCollageCapture => getIt<ProjectManager>().settings.enableCollageCapture;
   bool get showGallery => getIt<ProjectManager>().settings.showGallery;
+  // bool get showTemplate => getIt<ProjectManager>().settings.showTemplate;
   List<Language> get projectAvailableLanguages => getIt<ProjectManager>().settings.availableLanguages;
 
   @computed

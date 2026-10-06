@@ -1,9 +1,6 @@
 part of 'momento_booth_app.dart';
 
-List<RouteBase> _rootRoutes = [
-  _onboardingRoute,
-  _photoBoothShellRoute,
-];
+List<RouteBase> _rootRoutes = [_onboardingRoute, _photoBoothShellRoute];
 
 GoRoute _onboardingRoute = GoRoute(
   path: "/onboarding",
@@ -35,6 +32,7 @@ ShellRoute _photoBoothShellRoute = ShellRoute(
     _multiCaptureRoute,
     _collageMakerRoute,
     _shareRoute,
+    _templateRoute,
     _galleryRoute,
     _photoDetailsRoute,
     _manualCollageRoute,
@@ -48,21 +46,48 @@ ShellRoute _photoBoothShellRoute = ShellRoute(
 GoRoute _startRoute = GoRoute(
   path: StartScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (StartScreen).toString(), context: context, child: const StartScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (StartScreen).toString(),
+      context: context,
+      child: const StartScreen(),
+    );
   },
 );
 
 GoRoute _navigationRoute = GoRoute(
   path: NavigationScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (NavigationScreen).toString(), context: context, child: const NavigationScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (NavigationScreen).toString(),
+      context: context,
+      child: const NavigationScreen(),
+    );
+  },
+);
+
+GoRoute _templateRoute = GoRoute(
+  path: TemplateScreen.defaultRoute,
+  pageBuilder: (context, state) {
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (TemplateScreen).toString(),
+      context: context,
+      child: const TemplateScreen(),
+    );
   },
 );
 
 GoRoute _captureRoute = GoRoute(
   path: SingleCaptureScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (SingleCaptureScreen).toString(), context: context, child: const SingleCaptureScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (SingleCaptureScreen).toString(),
+      context: context,
+      child: const SingleCaptureScreen(),
+    );
   },
 );
 
@@ -70,28 +95,48 @@ GoRoute _multiCaptureRoute = GoRoute(
   path: MultiCaptureScreen.defaultRoute,
   pageBuilder: (context, state) {
     // Here we use state.uri because of the query param `n`.
-    return TransitionPage.fromSettings(key: ValueKey(state.uri.toString()), name: (MultiCaptureScreen).toString(), context: context, child: const MultiCaptureScreen());
+    return TransitionPage.fromSettings(
+      key: ValueKey(state.uri.toString()),
+      name: (MultiCaptureScreen).toString(),
+      context: context,
+      child: const MultiCaptureScreen(),
+    );
   },
 );
 
 GoRoute _collageMakerRoute = GoRoute(
   path: CollageMakerScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (CollageMakerScreen).toString(), context: context, child: const CollageMakerScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (CollageMakerScreen).toString(),
+      context: context,
+      child: const CollageMakerScreen(),
+    );
   },
 );
 
 GoRoute _shareRoute = GoRoute(
   path: ShareScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (ShareScreen).toString(), context: context, child: const ShareScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (ShareScreen).toString(),
+      context: context,
+      child: const ShareScreen(),
+    );
   },
 );
 
 GoRoute _galleryRoute = GoRoute(
   path: GalleryScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (GalleryScreen).toString(), context: context, child: const GalleryScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (GalleryScreen).toString(),
+      context: context,
+      child: const GalleryScreen(),
+    );
   },
 );
 
@@ -112,6 +157,11 @@ GoRoute _photoDetailsRoute = GoRoute(
 GoRoute _manualCollageRoute = GoRoute(
   path: ManualCollageScreen.defaultRoute,
   pageBuilder: (context, state) {
-    return TransitionPage.fromSettings(key: state.pageKey, name: (ManualCollageScreen).toString(), context: context, child: const ManualCollageScreen());
+    return TransitionPage.fromSettings(
+      key: state.pageKey,
+      name: (ManualCollageScreen).toString(),
+      context: context,
+      child: const ManualCollageScreen(),
+    );
   },
 );

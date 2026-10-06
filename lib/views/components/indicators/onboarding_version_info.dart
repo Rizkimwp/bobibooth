@@ -12,7 +12,7 @@ class OnboardingVersionInfo extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Text(
-        'MomentoBooth ${appVersionInfo.appVersion}\n'
+        'BobiBooth ${appVersionInfo.appVersion}\n'
           'Built with Flutter ${appVersionInfo.flutterVersion}, Rust ${appVersionInfo.rustVersion}',
         textAlign: TextAlign.center,
       ),

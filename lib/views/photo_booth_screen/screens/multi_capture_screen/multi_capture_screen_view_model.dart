@@ -4,7 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:mobx/mobx.dart';
-import 'package:momento_booth/hardware_control/photo_capturing/photo_capture_method.dart';
+
 import 'package:momento_booth/main.dart';
 import 'package:momento_booth/managers/photos_manager.dart';
 import 'package:momento_booth/managers/project_manager.dart';
@@ -22,125 +22,398 @@ import 'package:momento_booth/views/photo_booth_screen/screens/start_screen/star
 
 part 'multi_capture_screen_view_model.g.dart';
 
-class MultiCaptureScreenViewModel = MultiCaptureScreenViewModelBase with _$MultiCaptureScreenViewModel;
+class MultiCaptureScreenViewModel = MultiCaptureScreenViewModelBase
+    with _$MultiCaptureScreenViewModel;
 
-abstract class MultiCaptureScreenViewModelBase extends ScreenViewModelBase with Store {
+abstract class MultiCaptureScreenViewModelBase extends ScreenViewModelBase
+    with Store {
+  // ============================================================
+  // CAMERA
+  // ============================================================
 
-  late final PhotoCaptureMethod capturer;
   bool flashComplete = false;
   bool captureComplete = false;
 
-  int get counterStart => getIt<SettingsManager>().settings.captureDelaySeconds;
-  double get aspectRatio => getIt<SettingsManager>().settings.hardware.liveViewAndCaptureAspectRatio;
+  // ============================================================
+  // SETTINGS
+  // ============================================================
 
-  double get collageAspectRatio => getIt<SettingsManager>().settings.collageAspectRatio;
+  int get counterStart => getIt<SettingsManager>().settings.captureDelaySeconds;
+
+  double get aspectRatio =>
+      getIt<SettingsManager>().settings.hardware.liveViewAndCaptureAspectRatio;
+
+  double get collageAspectRatio =>
+      getIt<SettingsManager>().settings.collageAspectRatio;
+
   double get collagePadding => getIt<SettingsManager>().settings.collagePadding;
 
   PhotosManager get photosManager => getIt<PhotosManager>();
 
-  @observable
-  bool showCounter = true;
+  // ============================================================
+  // STATE
+  // ============================================================
 
+  /// Countdown sedang ditampilkan.
+  @observable
+  bool showCounter = false;
+
+  /// Efek flash.
   @observable
   bool showFlash = false;
 
+  /// Kamera sedang mengambil / memproses foto.
   @observable
   bool showSpinner = false;
 
-  @computed
-  double get opacity => showFlash ? 1.0 : 0.0;
+  /// Sedang dalam satu siklus capture.
+  @observable
+  bool isCapturing = false;
+
+  /// User boleh menekan TAKE PHOTO.
+  @observable
+  bool waitingForTrigger = false;
+
+  /// Sedang melakukan pengecekan kamera ketika screen dibuka.
+  @observable
+  bool checkingCamera = true;
+
+  // ============================================================
+  // CAMERA STATE
+  // ============================================================
 
   @computed
-  Curve get flashAnimationCurve => Curves.easeOutQuart;
+  bool get cameraUnavailable => photosManager.cameraUnavailable;
 
   @computed
-  Duration get flashAnimationDuration => showFlash ? flashStartDuration : flashEndDuration;
+  String? get cameraErrorMessage => photosManager.cameraErrorMessage;
 
-  /// Global key for controlling the slider widget.
-  final GlobalKey<PhotoCollageState> collageKey = GlobalKey<PhotoCollageState>();
+  // ============================================================
+  // PHOTO STATE
+  // ============================================================
+
+  @computed
+  int get capturedPhotos => photosManager.photos.length;
+
+  @computed
+  int get photoNumber {
+    return min(maxPhotos, capturedPhotos + 1);
+  }
+
+  @computed
+  int get currentPhotoNumber {
+    return photoNumber;
+  }
+
+  @computed
+  bool get allPhotosCaptured {
+    return capturedPhotos >= maxPhotos;
+  }
+
+  // ============================================================
+  // FLASH
+  // ============================================================
+
+  @computed
+  double get opacity {
+    return showFlash ? 1.0 : 0.0;
+  }
+
+  @computed
+  Curve get flashAnimationCurve {
+    return Curves.easeOutQuart;
+  }
+
+  @computed
+  Duration get flashAnimationDuration {
+    return showFlash ? flashStartDuration : flashEndDuration;
+  }
+
+  // ============================================================
+  // COLLAGE
+  // ============================================================
+
+  final GlobalKey<PhotoCollageState> collageKey =
+      GlobalKey<PhotoCollageState>();
 
   final Completer<void> completer = Completer<void>();
 
   late final bool enablePhotoCollageWidget;
 
   void collageReady() {
-    completer.complete();
+    if (!completer.isCompleted) {
+      completer.complete();
+    }
   }
 
   Future<File?> captureCollage() async {
     final stopwatch = Stopwatch()..start();
-    final pixelRatio = getIt<SettingsManager>().settings.output.resolutionMultiplier;
+
+    final pixelRatio =
+        getIt<SettingsManager>().settings.output.resolutionMultiplier;
+
     final format = getIt<SettingsManager>().settings.output.exportFormat;
+
     final jpgQuality = getIt<SettingsManager>().settings.output.jpgQuality;
+
     await completer.future;
-    getIt<PhotosManager>().outputImage = await collageKey.currentState!.getCollageImage(
+
+    getIt<PhotosManager>().outputImage = await collageKey.currentState!
+        .getCollageImage(
       createdByMode: CreatedByMode.multi,
       pixelRatio: pixelRatio,
       format: format,
       jpgQuality: jpgQuality,
     );
+
     logDebug('captureCollage took ${stopwatch.elapsed}');
 
     return await getIt<PhotosManager>().writeOutput();
   }
 
-  @computed
-  int get capturedPhotos => getIt<PhotosManager>().photos.length;
+  // ============================================================
+  // MAX PHOTO
+  // ============================================================
 
-  @computed
-  int get photoNumber => min(maxPhotos, capturedPhotos + 1); // Technically the min is not needed as there are no observables attached. Still.
+  final int maxPhotos =
+      getIt<ProjectManager>().settings.collageMode.captureCount;
 
-  final int maxPhotos = getIt<ProjectManager>().settings.collageMode.captureCount;
+  // ============================================================
+  // CONSTRUCTOR
+  // ============================================================
 
   MultiCaptureScreenViewModelBase({
     required super.contextAccessor,
   }) {
-    getIt<PhotosManager>().initiateDelayedPhotoCapture(onCaptureFinished);
-    enablePhotoCollageWidget = photoNumber == maxPhotos;
-  }
+    enablePhotoCollageWidget = true;
 
-  Future<void> onCounterFinished() async {
-    showFlash = true;
+    flashComplete = false;
+    captureComplete = false;
+
     showCounter = false;
-    await Future.delayed(flashAnimationDuration);
     showFlash = false;
-    showSpinner = true;
-    await Future.delayed(minimumContinueWait);
-    flashComplete = true; // Flash is now not actually complete, but after this time we do not care about it anymore.
-    navigateAfterCapture();
+    showSpinner = false;
+
+    isCapturing = false;
+    waitingForTrigger = false;
+
+    checkingCamera = true;
+
+    // Jangan capture.
+    // Hanya cek apakah kamera siap.
   }
 
-  void onCaptureFinished() {
-    captureComplete = true;
-    navigateAfterCapture();
+  // ============================================================
+  // INITIAL CAMERA CHECK
+  // ============================================================
+
+  // ============================================================
+  // TAKE PHOTO
+  // ============================================================
+
+  @action
+  void triggerCapture() {
+    if (cameraUnavailable) {
+      return;
+    }
+
+    if (isCapturing) {
+      return;
+    }
+
+    if (allPhotosCaptured) {
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // STATE
+    // ----------------------------------------------------------
+
+    isCapturing = true;
+    waitingForTrigger = false;
+
+    flashComplete = false;
+    captureComplete = false;
+
+    showFlash = false;
+    showSpinner = false;
+    showCounter = true;
+
+    // ----------------------------------------------------------
+    // DEBUG
+    // ----------------------------------------------------------
+
+    logDebug(
+      'MULTI CAPTURE START '
+      'photo=${capturedPhotos + 1}/$maxPhotos',
+    );
+
+    // ----------------------------------------------------------
+    // CAPTURE
+    // ----------------------------------------------------------
+
+    photosManager.initiateDelayedPhotoCapture(onCaptureFinished);
   }
 
-  void navigateAfterCapture() {
-    if (!flashComplete || !captureComplete) return;
-    // If we completed all captures, go to the next screen.
-    if (getIt<PhotosManager>().photos.length >= maxPhotos) {
-      // If the collage mode is user selection, go to the collage maker screen.
-      if (getIt<ProjectManager>().settings.collageMode == CollageMode.userSelection) {
-        router.go(CollageMakerScreen.defaultRoute);
-      } else {
-        // Otherwise, we can immediately create the collage and go to the share screen.
-        getIt<PhotosManager>().chosen.clear();
-        getIt<PhotosManager>().chosen.addAll(List.generate(getIt<PhotosManager>().photos.length, (index) => index));
-        captureCollage().then((value) {
-          if (value != null) {
-            // Normally this statistic is handled in the CollageMakerScreen, but if we skip that screen we need to do it here.
-            getIt<StatsManager>().addCreatedMultiCapturePhoto();
-            router.go(ShareScreen.defaultRoute);
-          } else {
-            // Something went wrong, go back to start.
-            router.go(StartScreen.defaultRoute);
-          }
-        });
-      }
-    } else {
-      // Otherwise, go to a new MultiCaptureScreen to take the next photo.
-      router.go("${MultiCaptureScreen.defaultRoute}?n=${getIt<PhotosManager>().photos.length}");
+  // ============================================================
+  // COUNTDOWN FINISHED
+  // ============================================================
+
+  @action
+  Future<void> onCounterFinished() async {
+    showCounter = false;
+
+    // ----------------------------------------------------------
+    // FLASH
+    // ----------------------------------------------------------
+
+    showFlash = true;
+
+    await Future.delayed(flashAnimationDuration);
+
+    showFlash = false;
+
+    // ----------------------------------------------------------
+    // SPINNER
+    // ----------------------------------------------------------
+
+    if (isCapturing) {
+      showSpinner = true;
     }
   }
 
+  // ============================================================
+  // CAMERA CALLBACK
+  // ============================================================
+
+  @action
+  void onCaptureFinished() {
+    showSpinner = false;
+    showCounter = false;
+    showFlash = false;
+
+    isCapturing = false;
+
+    // ----------------------------------------------------------
+    // CAMERA ERROR
+    // ----------------------------------------------------------
+
+    if (cameraUnavailable) {
+      waitingForTrigger = false;
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // SEMUA FOTO SELESAI
+    // ----------------------------------------------------------
+
+    if (allPhotosCaptured) {
+      waitingForTrigger = false;
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // FOTO BERIKUTNYA
+    // ----------------------------------------------------------
+
+    waitingForTrigger = true;
+  }
+
+  // ============================================================
+  // RETRY CAMERA
+  // ============================================================
+
+  // ============================================================
+  // DONE
+  // ============================================================
+
+  Future<void> navigateAfterCapture() async {
+    // Belum semua foto.
+    if (!allPhotosCaptured) {
+      return;
+    }
+
+    // Masih capture.
+    if (isCapturing) {
+      return;
+    }
+
+    // Kamera bermasalah.
+    if (cameraUnavailable) {
+      return;
+    }
+
+    waitingForTrigger = false;
+
+    // ==========================================================
+    // USER SELECTION
+    // ==========================================================
+
+    if (getIt<ProjectManager>().settings.collageMode ==
+        CollageMode.userSelection) {
+      router.go(CollageMakerScreen.defaultRoute);
+
+      return;
+    }
+
+    // ==========================================================
+    // AUTO MODE
+    // ==========================================================
+
+    photosManager.chosen.clear();
+
+    photosManager.chosen.addAll(
+      List.generate(photosManager.photos.length, (index) => index),
+    );
+
+    // ==========================================================
+    // CREATE COLLAGE
+    // ==========================================================
+
+    final value = await captureCollage();
+
+    // ==========================================================
+    // SUCCESS
+    // ==========================================================
+
+    if (value != null) {
+      getIt<StatsManager>().addCreatedMultiCapturePhoto();
+
+      router.go(ShareScreen.defaultRoute);
+
+      return;
+    }
+
+    // ==========================================================
+    // FAILED
+    // ==========================================================
+
+    router.go(StartScreen.defaultRoute);
+  }
+
+  // ============================================================
+  // RESET
+  // ============================================================
+
+  @action
+  void resetCaptureState() {
+    if (isCapturing) {
+      return;
+    }
+
+    flashComplete = false;
+    captureComplete = false;
+
+    showCounter = false;
+    showFlash = false;
+    showSpinner = false;
+
+    isCapturing = false;
+
+    if (cameraUnavailable || checkingCamera) {
+      waitingForTrigger = false;
+    } else {
+      waitingForTrigger = true;
+    }
+  }
 }

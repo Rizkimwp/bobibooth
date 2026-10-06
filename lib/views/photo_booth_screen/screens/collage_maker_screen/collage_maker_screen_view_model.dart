@@ -18,40 +18,92 @@ abstract class CollageMakerScreenViewModelBase extends ScreenViewModelBase with 
     required super.contextAccessor,
   });
 
+ 
+  // ============================================================
+  // PHOTO
+  // ============================================================
+
   int get numSelected => getIt<PhotosManager>().chosen.length;
 
-  double get collageAspectRatio => getIt<SettingsManager>().settings.collageAspectRatio;
+  double get collageAspectRatio =>
+      getIt<SettingsManager>().settings.collageAspectRatio;
+
   double get collagePadding => getIt<SettingsManager>().settings.collagePadding;
 
   int get rotation => [0, 1, 4].contains(numSelected) ? 1 : 0;
+
+  // ============================================================
+  // STEP
+  // ============================================================
+
+  /// false = pilih template
+  /// true  = pilih foto
+  @observable
+  bool templateSelected = false;
+
+  @action
+  void selectTemplateStep() {
+    templateSelected = true;
+  }
+
+  @action
+  void backToTemplateStep() {
+    templateSelected = false;
+  }
+
+  // ============================================================
+  // GENERATE
+  // ============================================================
 
   @observable
   bool isGeneratingImage = false;
 
   final Duration opacityDuration = const Duration(milliseconds: 300);
 
- Future<void> generateCollage({required GlobalKey<PhotoCollageState> collageKey}) async {
+  Future<void> generateCollage({
+    required GlobalKey<PhotoCollageState> collageKey,
+  }) async {
     if (isGeneratingImage) return;
+
     isGeneratingImage = true;
 
-    final stopwatch = Stopwatch()..start();
-    final pixelRatio = getIt<SettingsManager>().settings.output.resolutionMultiplier;
-    final format = getIt<SettingsManager>().settings.output.exportFormat;
-    final jpgQuality = getIt<SettingsManager>().settings.output.jpgQuality;
-    final exportImage = await collageKey.currentState!.getCollageImage(
-      createdByMode: CreatedByMode.multi,
-      pixelRatio: pixelRatio,
-      format: format,
-      jpgQuality: jpgQuality,
-    );
-    logDebug('captureCollage took ${stopwatch.elapsed}');
+    try {
+      final stopwatch = Stopwatch()..start();
 
-    getIt<PhotosManager>().outputImage = exportImage;
-    logDebug("Written collage image to output image memory");
-    await getIt<PhotosManager>().writeOutput();
+      final settingsManager = getIt<SettingsManager>();
+      final photosManager = getIt<PhotosManager>();
 
-    isGeneratingImage = false;
-    getIt<StatsManager>().addCreatedMultiCapturePhoto();
+      final pixelRatio = settingsManager.settings.output.resolutionMultiplier;
+
+      final format = settingsManager.settings.output.exportFormat;
+
+      final jpgQuality = settingsManager.settings.output.jpgQuality;
+
+      final collageState = collageKey.currentState;
+
+      if (collageState == null) {
+        throw StateError('PhotoCollage is not ready yet.');
+      }
+
+      final exportImage = await collageState.getCollageImage(
+        createdByMode: CreatedByMode.multi,
+        pixelRatio: pixelRatio,
+        format: format,
+        jpgQuality: jpgQuality,
+      );
+
+      logDebug('captureCollage took ${stopwatch.elapsed}');
+
+      photosManager.outputImage = exportImage;
+
+      logDebug('Written collage image to output image memory');
+
+      await photosManager.writeOutput();
+
+      getIt<StatsManager>().addCreatedMultiCapturePhoto();
+    } finally {
+      isGeneratingImage = false;
+    }
   }
 
 }

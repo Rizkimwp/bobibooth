@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:momento_booth/main.dart';
 import 'package:momento_booth/managers/photos_manager.dart';
@@ -12,37 +13,76 @@ import 'package:momento_booth/views/base/printer_status_dialog_mixin.dart';
 import 'package:momento_booth/views/base/screen_controller_base.dart';
 import 'package:momento_booth/views/components/dialogs/print_dialog.dart';
 import 'package:momento_booth/views/components/dialogs/retake_dialog.dart';
+import 'package:momento_booth/views/components/imaging/photo_collage.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/collage_maker_screen/collage_maker_screen.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/multi_capture_screen/multi_capture_screen.dart';
+import 'package:momento_booth/views/photo_booth_screen/screens/navigation_screen/navigation_screen.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/share_screen/share_screen_view_model.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/single_capture_screen/single_capture_screen.dart';
-import 'package:momento_booth/views/photo_booth_screen/screens/start_screen/start_screen.dart';
 import 'package:momento_booth/views/with_case_builders.dart';
 import 'package:path/path.dart' as path;
 
-class ShareScreenController extends ScreenControllerBase<ShareScreenViewModel> with PrinterStatusDialogMixin<ShareScreenViewModel> {
+class ShareScreenController extends ScreenControllerBase<ShareScreenViewModel>
+    with PrinterStatusDialogMixin<ShareScreenViewModel> {
+  AutoSizeGroup actionButtonGroup = AutoSizeGroup();
 
-  AutoSizeGroup actionButtonGroup = AutoSizeGroup(), navigationButtonGroup = AutoSizeGroup();
+  AutoSizeGroup navigationButtonGroup = AutoSizeGroup();
 
-  // Initialization/Deinitialization
+  // ==============================================================
+  // COLLAGE KEY
+  // ==============================================================
+
+  final GlobalKey<PhotoCollageState> collageKey =
+      GlobalKey<PhotoCollageState>();
+
+  // ==============================================================
+  // INITIALIZATION
+  // ==============================================================
 
   ShareScreenController({
     required super.viewModel,
     required super.contextAccessor,
   }) {
     getIt<SfxManager>().playShareScreenSound();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      viewModel.initializeTemplateEditor();
+    });
   }
+
+  // ==============================================================
+  // GENERATE
+  // ==============================================================
+
+  Future<void> onGenerateTemplate() async {
+    if (!viewModel.allSlotsFilled) {
+      return;
+    }
+
+    await viewModel.generateTemplate(collageKey: collageKey);
+  }
+
+  // ==============================================================
+  // NEXT
+  // ==============================================================
 
   void onClickNext() {
-    router.go(StartScreen.defaultRoute);
+    router.go(NavigationScreen.defaultRoute);
   }
 
-  void onRetake (bool delete) {
+  // ==============================================================
+  // RETAKE
+  // ==============================================================
+
+  void onRetake(bool delete) {
     navigator.pop();
-    // The reset function will clear the capture mode, so we need to save it.
+
     final captureMode = getIt<PhotosManager>().captureMode;
+
     getIt<PhotosManager>().reset(advance: !delete);
+
     getIt<StatsManager>().addRetake();
+
     if (captureMode == CaptureMode.single) {
       router.go(SingleCaptureScreen.defaultRoute);
     } else {
@@ -50,64 +90,113 @@ class ShareScreenController extends ScreenControllerBase<ShareScreenViewModel> w
     }
   }
 
+  // ==============================================================
+  // PREVIOUS
+  // ==============================================================
+
   void onClickPrev() {
     logDebug("Clicked prev");
+
+    // Jika masih di template editor,
+    // kembali ke CollageMaker.
+    if (viewModel.isTemplateEditing) {
+      getIt<StatsManager>().addCollageChange();
+
+      router.go(CollageMakerScreen.defaultRoute);
+
+      return;
+    }
+
+    // Setelah hasil selesai, gunakan
+    // behavior lama.
     if (viewModel.canRetake) {
-      showUserDialog(dialog: RetakeDialog(onDelete: () => onRetake(true), onKeep: () => onRetake(false), onCancel: () => navigator.pop() ), barrierDismissible: false);
+      showUserDialog(
+        dialog: RetakeDialog(
+          onDelete: () => onRetake(true),
+          onKeep: () => onRetake(false),
+          onCancel: () => navigator.pop(),
+        ),
+        barrierDismissible: false,
+      );
     } else {
       getIt<StatsManager>().addCollageChange();
+
       router.go(CollageMakerScreen.defaultRoute);
     }
   }
 
+  // ==============================================================
+  // QR
+  // ==============================================================
+
   void onClickGetQR() {
     viewModel.uploadPhotoToSend();
+
     showUserDialog(
       barrierDismissible: false,
-      dialog: Observer(builder: (_) {
-        return QrShareDialog(
-          state: viewModel.uploadFailed
-              ? ShareDialogState.error
-              : viewModel.uploadProgress != null || viewModel.qrUrl == null
-                  ? ShareDialogState.uploading
-                  : ShareDialogState.uploaded,
-          uploadProgress: (viewModel.uploadProgress ?? 0) * 100,
-          qrText: viewModel.qrUrl,
-          onDismiss: () => navigator.pop(),
-          onRedoUpload: viewModel.uploadPhotoToSend,
-        );
-      }),
+      dialog: Observer(
+        builder: (_) {
+          return QrShareDialog(
+            state: viewModel.uploadFailed
+                ? ShareDialogState.error
+                : viewModel.uploadProgress != null || viewModel.qrUrl == null
+                ? ShareDialogState.uploading
+                : ShareDialogState.uploaded,
+            uploadProgress: (viewModel.uploadProgress ?? 0) * 100,
+            qrText: viewModel.qrUrl,
+            onDismiss: () => navigator.pop(),
+            onRedoUpload: viewModel.uploadPhotoToSend,
+          );
+        },
+      ),
     );
   }
+
+  // ==============================================================
+  // PRINT
+  // ==============================================================
 
   int successfulPrints = 0;
 
   void resetPrint() {
-    if (!contextAccessor.buildContext.mounted) return;
+    if (!contextAccessor.buildContext.mounted) {
+      return;
+    }
+
     viewModel
-      ..printText = successfulPrints > 0 ? "${localizations.genericPrintButton} +1" : localizations.genericPrintButton
+      ..printText = successfulPrints > 0
+          ? "${localizations.genericPrintButton} +1"
+          : localizations.genericPrintButton
       ..printEnabled = true;
   }
 
   void onClickPrint() {
-    if (!viewModel.printEnabled) return;
+    if (!viewModel.printEnabled) {
+      return;
+    }
+
     showUserDialog(
       barrierDismissible: false,
-      dialog: Observer(builder: (_) {
-        return PrintDialog(
-          onPrintPressed: (size, copies) {
-            navigator.pop();
-            onConfirmPrint(size, copies);
-          },
-          onCancel: () => navigator.pop(),
-        );
-      }),
+      dialog: Observer(
+        builder: (_) {
+          return PrintDialog(
+            onPrintPressed: (size, copies) {
+              navigator.pop();
+
+              onConfirmPrint(size, copies);
+            },
+            onCancel: () => navigator.pop(),
+          );
+        },
+      ),
     );
   }
 
   Future<void> onConfirmPrint(PrintSize size, int copies) async {
     PrintSize usingSize = size;
-    if (size == PrintSize.normal && getIt<PhotosManager>().chosenPhotos.length == 3) {
+
+    if (size == PrintSize.normal &&
+        getIt<PhotosManager>().chosenPhotos.length == 3) {
       usingSize = PrintSize.split;
     }
 
@@ -117,24 +206,42 @@ class ShareScreenController extends ScreenControllerBase<ShareScreenViewModel> w
       ..printEnabled = false
       ..printText = localizations.shareScreenPrinting;
 
-    // Get photo and print it.
     final pdfData = await getIt<PhotosManager>().getOutputPDF(usingSize);
+
     final lastFile = getIt<PhotosManager>().lastPhotoFile;
-    String jobName = lastFile != null ? path.basenameWithoutExtension(lastFile.path) : "MomentoBooth Picture";
+
+    final jobName = lastFile != null
+        ? path.basenameWithoutExtension(lastFile.path)
+        : "MomentoBooth Picture";
 
     bool success = false;
+
     try {
-      await getIt<PrintingManager>().printPdf(jobName, pdfData, copies: copies, printSize: usingSize);
+      await getIt<PrintingManager>().printPdf(
+        jobName,
+        pdfData,
+        copies: copies,
+        printSize: usingSize,
+      );
+
       success = true;
     } catch (e) {
       logError("Failed to print photo: $e");
     }
 
     successfulPrints += success ? copies : 0;
-    if (!success) unawaited(showUserDialog(dialog: const PrintingErrorDialog(), barrierDismissible: true));
+
+    if (!success) {
+      unawaited(
+        showUserDialog(
+          dialog: const PrintingErrorDialog(),
+          barrierDismissible: true,
+        ),
+      );
+    }
+
     resetPrint();
 
     await checkPrintersAndShowWarnings();
   }
-
 }

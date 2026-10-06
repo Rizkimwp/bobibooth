@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
+import 'dart:convert';
 
 import 'package:args/args.dart';
 import 'package:collection/collection.dart';
@@ -21,13 +22,12 @@ import 'package:momento_booth/repositories/serializable/serializable_repository.
 import 'package:momento_booth/repositories/serializable/toml_serializable_repository.dart';
 import 'package:momento_booth/utils/logger.dart';
 import 'package:path/path.dart' hide context;
-
+import 'package:momento_booth/models/photo_template.dart';
 part 'project_manager.g.dart';
 
 class ProjectManager = ProjectManagerBase with _$ProjectManager;
 
 abstract class ProjectManagerBase extends Subsystem with Store, Logger {
-
   @override
   String subsystemName = "Project settings";
 
@@ -43,7 +43,8 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
   @readonly
   ProjectSettings _settings = ProjectSettings();
 
-  Color get primaryColor => _isOpen ? _settings.primaryColor : defaultThemeColor;
+  Color get primaryColor =>
+      _isOpen ? _settings.primaryColor : defaultThemeColor;
 
   @readonly
   bool _blockSaving = false;
@@ -60,14 +61,20 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
   @readonly
   late ProjectsList _projectsList;
 
-  SerialiableRepository<ProjectSettings>? getRepo(){
+  SerialiableRepository<ProjectSettings>? getRepo() {
     if (!_isOpen) return null;
-    return TomlSerializableRepository(join(_path!.path, "ProjectSettings.toml"), ProjectSettings.fromJson);
+    return TomlSerializableRepository(
+      join(_path!.path, "ProjectSettings.toml"),
+      ProjectSettings.fromJson,
+    );
   }
 
-  SerialiableRepository<Stats>? getStatsRepo(){
+  SerialiableRepository<Stats>? getStatsRepo() {
     if (!_isOpen) return null;
-    return TomlSerializableRepository(join(_path!.path, "Stats.toml"), Stats.fromJson);
+    return TomlSerializableRepository(
+      join(_path!.path, "Stats.toml"),
+      Stats.fromJson,
+    );
   }
 
   @readonly
@@ -77,14 +84,18 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
 
   @override
   Future<void> initialize() async {
-    SerialiableRepository<ProjectsList> projectsListRepository = getIt<SerialiableRepository<ProjectsList>>();
+    SerialiableRepository<ProjectsList> projectsListRepository =
+        getIt<SerialiableRepository<ProjectsList>>();
 
     try {
-      bool hasExistingProjectsList = await projectsListRepository.hasExistingData();
+      bool hasExistingProjectsList = await projectsListRepository
+          .hasExistingData();
 
       if (!hasExistingProjectsList) {
         _projectsList = const ProjectsList();
-        reportSubsystemOk(message: "No existing ProjectsList data found, a new file will be created.");
+        reportSubsystemOk(
+          message: "No existing ProjectsList data found, a new file will be created.",
+        );
       } else {
         _projectsList = await projectsListRepository.get();
         reportSubsystemOk();
@@ -92,7 +103,8 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
     } catch (e) {
       _projectsList = const ProjectsList();
       reportSubsystemWarning(
-        message: "Could not read existing ProjectsList: $e\n\nThe ProjectsList have been cleared. As such the existing ProjectsList file will be overwritten.",
+        message:
+            "Could not read existing ProjectsList: $e\n\nThe ProjectsList have been cleared. As such the existing ProjectsList file will be overwritten.",
       );
     }
 
@@ -126,26 +138,39 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
 
   void _ensureSubDirs() {
     if (_path == null) return;
-    for (final subDir in subDirs){
+
+    for (final subDir in subDirs) {
       Directory(join(_path!.path, subDir)).createSync();
     }
 
-    // Initialize template directory watcher, cancelling existing one if necessary.
     if (_templateDirWatcher != null) {
       _templateDirWatcher!.cancel();
     }
-    _templateDirWatcher = getTemplateDir().watch(recursive: false).listen((event) {
-      FsWatcherEventType? eventType = FsWatcherEventType.values.firstWhereOrNull((e) => e.value == event.type);
-      logDebug("Template directory change detected: ${event.path}, type: ${eventType ?? "unknown"}");
-      // Trigger findTemplates regardless of the event type (create, modify, delete)
+
+    _templateDirWatcher = getTemplateDir().watch(recursive: true).listen((
+      event,
+    ) {
+      FsWatcherEventType? eventType = FsWatcherEventType.values
+          .firstWhereOrNull((e) => e.value == event.type);
+
+      logDebug(
+        "Template directory change detected: ${event.path}, "
+        "type: ${eventType ?? "unknown"}",
+      );
+
       findTemplates();
     });
-    // Initial template loading
+
     findTemplates();
   }
 
   Future<void> openLastProject() async {
-    return open(_projectsList.list.sorted((a, b) => b.opened.compareTo(a.opened)).first.path);
+    return open(
+      _projectsList.list
+          .sorted((a, b) => b.opened.compareTo(a.opened))
+          .first
+          .path,
+    );
   }
 
   Future<void> open(String projectPath) async {
@@ -158,7 +183,9 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
     final absPath = canonicalize(directory.path);
     // Check if there is already an entry for this path in the projects list. This is done by comparing the path.
     final List<ProjectData> currentList = List.from(_projectsList.list);
-    final existingProjectEntries = currentList.indexed.where((e) => canonicalize(e.$2.path) == absPath).toList();
+    final existingProjectEntries = currentList.indexed
+        .where((e) => canonicalize(e.$2.path) == absPath)
+        .toList();
     late final ProjectData entry;
     if (existingProjectEntries.isEmpty) {
       // Create directory and add entry to our projects list
@@ -189,7 +216,9 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
 
       if (!hasExistingProjectsList) {
         _settings = const ProjectSettings();
-        reportSubsystemOk(message: "No existing ProjectsList data found, a new file will be created.");
+        reportSubsystemOk(
+          message: "No existing ProjectsList data found, a new file will be created.",
+        );
       } else {
         _settings = await repo.get();
         reportSubsystemOk();
@@ -197,7 +226,8 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
     } catch (e) {
       _projectsList = const ProjectsList();
       reportSubsystemWarning(
-        message: "Could not read existing ProjectSettings: $e\n\nThe ProjectSettings have been cleared. As such the existing ProjectSettings file will be overwritten.",
+        message:
+            "Could not read existing ProjectSettings: $e\n\nThe ProjectSettings have been cleared. As such the existing ProjectSettings file will be overwritten.",
       );
     }
 
@@ -213,9 +243,14 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
       }
     } catch (e) {
       _stats = const Stats();
-      logWarning("Could not read existing project statistics: $e\n\nThe project statistics have been cleared. As such the existing Stats file will be overwritten.");
+      logWarning(
+        "Could not read existing project statistics: $e\n\nThe project statistics have been cleared. As such the existing Stats file will be overwritten.",
+      );
     }
-    _statsSaveTimer = Timer.periodic(statsSaveTimerInterval, (timer) => _saveStats());
+    _statsSaveTimer = Timer.periodic(
+      statsSaveTimerInterval,
+      (timer) => _saveStats(),
+    );
 
     // Update available localizations
     await setAvailableLocalizations();
@@ -239,14 +274,16 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
   Future<void> setAvailableLocalizations() async {
     _availableLocalizations = await Future.wait(
       _settings.availableLanguages
-        .map((lang) => lang.toLocale())
-        .map((locale) async => AppLocalizations.delegate.load(locale))
+          .map((lang) => lang.toLocale())
+          .map((locale) async => AppLocalizations.delegate.load(locale)),
     );
   }
 
   Future<bool> browseOpen() async {
     // TODO get a translation delegate in here somehow
-    final pathToOpen = await getDirectoryPath(confirmButtonText: "Open folder as project");
+    final pathToOpen = await getDirectoryPath(
+      confirmButtonText: "Open folder as project",
+    );
     if (pathToOpen != null) {
       await open(pathToOpen);
       return true;
@@ -280,7 +317,9 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
   }
 
   @action
-  Future<void> mutateAndSave(ProjectSettings Function(ProjectSettings settings) settings) async {
+  Future<void> mutateAndSave(
+    ProjectSettings Function(ProjectSettings settings) settings,
+  ) async {
     await updateAndSave(settings(_settings));
   }
 
@@ -291,20 +330,149 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
     TemplateKind.liveViewOverlay: <int, File?>{},
   };
 
+  @readonly
+  List<PhotoTemplate> _customTemplates = [];
+
+  @readonly
+  PhotoTemplate? _selectedCustomTemplate;
+
+  @action
+  void selectCustomTemplate(PhotoTemplate? template) {
+    _selectedCustomTemplate = template;
+  }
+
+  Future<void> _findCustomTemplates() async {
+    final templateRoot = getTemplateDir();
+
+    if (!templateRoot.existsSync()) {
+      return;
+    }
+
+    final List<PhotoTemplate> foundTemplates = [];
+
+    await for (final entity in templateRoot.list(
+      recursive: false,
+      followLinks: false,
+    )) {
+      if (entity is! Directory) {
+        continue;
+      }
+
+      final configFile = File(join(entity.path, 'template.json'));
+
+      if (!configFile.existsSync()) {
+        continue;
+      }
+
+      try {
+        final jsonString = await configFile.readAsString();
+
+        final json = jsonDecode(jsonString);
+
+        if (json is! Map<String, dynamic>) {
+          logWarning('Invalid template.json: ${configFile.path}');
+          continue;
+        }
+
+        final backFile = _findTemplateImage(entity, [
+          'back.png',
+          'back.jpg',
+          'back.jpeg',
+          'back.webp',
+        ]);
+
+        final frontFile = _findTemplateImage(entity, [
+          'front.png',
+          'front.jpg',
+          'front.jpeg',
+          'front.webp',
+        ]);
+
+        final template = PhotoTemplate.fromJson(
+          json,
+          backPath: backFile?.path,
+          frontPath: frontFile?.path,
+        );
+
+        foundTemplates.add(template);
+
+        logDebug(
+          'Custom template loaded: '
+          '${template.id} - ${template.name}',
+        );
+      } catch (e, stackTrace) {
+        logWarning(
+          'Could not load custom template: ${configFile.path}\n'
+          '$e\n'
+          '$stackTrace',
+        );
+      }
+    }
+
+    foundTemplates.sort(
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    );
+
+    _customTemplates = foundTemplates;
+
+    // Kalau template sebelumnya sudah hilang,
+    // jangan menyimpan selected template tersebut.
+    if (_selectedCustomTemplate != null) {
+      final stillExists = foundTemplates.any(
+        (template) => template.id == _selectedCustomTemplate!.id,
+      );
+
+      if (!stillExists) {
+        _selectedCustomTemplate = null;
+      }
+    }
+  }
+
   Future<void> findTemplates() async {
+    // ==========================================
+    // LEGACY TEMPLATES
+    // ==========================================
+
     // There is only one live view overlay template
-    final liveViewOverlayTemplate = await _templateResolver(["live-view-overlay"]);
+    final liveViewOverlayTemplate = await _templateResolver([
+      "live-view-overlay",
+    ]);
+
     _templates[TemplateKind.liveViewOverlay]?[0] = liveViewOverlayTemplate;
-  
-    // It might feel like it doens't make sense to start from 0, but this one is used when no photos have been selected by the user yet.
+
     // 1 through 4 are the templates for 1 to 4 photos.
     for (int i = 0; i <= 4; i++) {
-      final frontTemplate = await _templateResolver(["${TemplateKind.front.name}-template-$i", "${TemplateKind.front.name}-template"]);
-      final backTemplate = await _templateResolver(["${TemplateKind.back.name}-template-$i", "${TemplateKind.back.name}-template"]);
+      final frontTemplate = await _templateResolver([
+        "${TemplateKind.front.name}-template-$i",
+        "${TemplateKind.front.name}-template",
+      ]);
+
+      final backTemplate = await _templateResolver([
+        "${TemplateKind.back.name}-template-$i",
+        "${TemplateKind.back.name}-template",
+      ]);
+
       _templates[TemplateKind.front]?[i] = frontTemplate;
       _templates[TemplateKind.back]?[i] = backTemplate;
-      // await Future.delayed(const Duration(milliseconds: 100));
     }
+
+    // ==========================================
+    // CUSTOM TEMPLATES
+    // ==========================================
+
+    await _findCustomTemplates();
+  }
+
+  File? _findTemplateImage(Directory directory, List<String> fileNames) {
+    for (final fileName in fileNames) {
+      final file = File(join(directory.path, fileName));
+
+      if (file.existsSync()) {
+        return file;
+      }
+    }
+
+    return null;
   }
 
   /// Checks if a given template file exists and returns it if it does.
@@ -318,10 +486,14 @@ abstract class ProjectManagerBase extends Subsystem with Store, Logger {
 
   /// Resolve the template for a given kind (backtground, foreground) and number of photos.
   Future<File?> _templateResolver(List<String> basenames) async {
-    var fileNamesToCheck = basenames.map((basename) => imageExtensions.map((ext) => "$basename.$ext")).flattened;
+    var fileNamesToCheck = basenames
+        .map((basename) => imageExtensions.map((ext) => "$basename.$ext"))
+        .flattened;
     final filesToCheck = fileNamesToCheck.map(_templateTest);
     final checkedFiles = await Future.wait(filesToCheck);
-    return checkedFiles.firstWhere((element) => element != null, orElse: () => null);
+    return checkedFiles.firstWhere(
+      (element) => element != null,
+      orElse: () => null,
+    );
   }
-
 }

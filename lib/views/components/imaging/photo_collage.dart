@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart' hide Action, RawImage;
@@ -16,6 +18,7 @@ import 'package:momento_booth/managers/project_manager.dart';
 import 'package:momento_booth/managers/settings_manager.dart';
 import 'package:momento_booth/models/maker_note_data.dart';
 import 'package:momento_booth/models/photo_capture.dart';
+import 'package:momento_booth/models/photo_template.dart';
 import 'package:momento_booth/models/settings.dart';
 import 'package:momento_booth/models/source_photo.dart';
 import 'package:momento_booth/models/template_kind.dart';
@@ -29,7 +32,6 @@ import 'package:momento_booth/views/photo_booth_screen/screens/components/text/p
 import 'package:screenshot/screenshot.dart';
 
 class PhotoCollage extends StatefulWidget {
-
   final double aspectRatio;
   final double padding;
   final bool showLogo;
@@ -57,30 +59,80 @@ class PhotoCollage extends StatefulWidget {
 
   @override
   State<PhotoCollage> createState() => PhotoCollageState();
-
 }
 
 class PhotoCollageState extends State<PhotoCollage> with Logger {
-
   ScreenshotController screenshotController = ScreenshotController();
 
   static const double gap = 20.0;
 
   ObservableList<int> get chosen => getIt<PhotosManager>().chosen;
+
   ObservableList<PhotoCapture> get photos => getIt<PhotosManager>().photos;
-  Iterable<PhotoCapture> get chosenPhotos => getIt<PhotosManager>().chosenPhotos;
+
+  Iterable<PhotoCapture> get chosenPhotos =>
+      getIt<PhotosManager>().chosenPhotos;
+
   int get nChosen => widget.debug ?? chosen.length;
+
   int get rotation => [0, 1, 4].contains(nChosen) ? 1 : 0;
+
   List<bool> imagesDecoded = List.filled(4, false);
 
   bool decodeCallbackCalled = false;
 
+  /// Template custom yang sedang dipilih.
+  PhotoTemplate? get customTemplate =>
+      getIt<ProjectManager>().selectedCustomTemplate;
+
+  /// Apakah template custom sedang aktif untuk jumlah foto sekarang?
+  bool get hasCustomTemplate {
+    return customTemplate != null;
+  }
+
+  /// Skala dari ukuran template asli ke canvas internal.
+  ///
+  /// Canvas internal PhotoCollage memiliki tinggi 1000.
+  double get customTemplateScale {
+    final template = customTemplate;
+
+    if (template == null || template.height <= 0) {
+      return 1;
+    }
+
+    return 1000 / template.height;
+  }
+
+  /// Lebar canvas custom berdasarkan aspect ratio template.
+  double get customCanvasWidth {
+    final template = customTemplate;
+
+    if (template == null || template.height <= 0) {
+      return 1000;
+    }
+
+    return template.width * customTemplateScale;
+  }
+
+  /// Tinggi canvas custom selalu dinormalisasi menjadi 1000.
+  double get customCanvasHeight {
+    if (!hasCustomTemplate) {
+      return 1000 + 2 * widget.padding;
+    }
+
+    return 1000;
+  }
+
   /// Called when an image has been decoded by the Image widget.
-  /// When all images are decoded, we can call the decodeCallback to signal that the collage is ready.
+  ///
+  /// When all images are decoded, we can call the decodeCallback
+  /// to signal that the collage is ready.
   void _onImageDecoded(int index) {
     if (imagesDecoded.length > index) {
       imagesDecoded[index] = true;
-      if (imagesDecoded.where((e) => e).length == nChosen && !decodeCallbackCalled) {
+
+      if (imagesDecoded.where((e) => e).length == nChosen &&
+          !decodeCallbackCalled) {
         widget.decodeCallback?.call();
         decodeCallbackCalled = true;
       }
@@ -89,20 +141,34 @@ class PhotoCollageState extends State<PhotoCollage> with Logger {
 
   @override
   Widget build(BuildContext context) {
+    final double canvasHeight = hasCustomTemplate
+        ? customCanvasHeight
+        : 1000 + 2 * widget.padding;
+
+    final double canvasWidth = hasCustomTemplate
+        ? customCanvasWidth
+        : 1000 * widget.aspectRatio + 2 * widget.padding;
+
     Widget collageBox = FittedBox(
       child: Screenshot(
         controller: screenshotController,
         child: SizedBox(
-          height: 1000 + 2 * widget.padding,
-          width: 1000 * widget.aspectRatio + 2 * widget.padding,
-          child: Observer(builder: (context) => _getLayout(AppLocalizations.of(context)!, context)),
+          height: canvasHeight,
+          width: canvasWidth,
+          child: Observer(
+            builder: (context) =>
+                _getLayout(AppLocalizations.of(context)!, context),
+          ),
         ),
       ),
     );
 
-    if (widget.isVisible) return collageBox;
+    if (widget.isVisible) {
+      return collageBox;
+    }
 
-    // We have already tested built in Flutter widgets like Visibility, Opacity, Offstage, but none of them work...
+    // We have already tested built-in Flutter widgets like Visibility,
+    // Opacity, Offstage, but none of them work...
     return Transform.translate(
       offset: Offset(MediaQuery.sizeOf(context).width, 0),
       child: collageBox,
@@ -110,66 +176,227 @@ class PhotoCollageState extends State<PhotoCollage> with Logger {
   }
 
   Widget _getLayout(AppLocalizations localizations, BuildContext context) {
-    var templates = getIt<ProjectManager>().templates;
+    // ============================================================
+    // CUSTOM TEMPLATE
+    // ============================================================
+
+    if (hasCustomTemplate) {
+      return _getCustomTemplateLayout(customTemplate!);
+    }
+
+    // ============================================================
+    // LEGACY TEMPLATE
+    // ============================================================
+
+    final templates = getIt<ProjectManager>().templates;
+
     return Stack(
       clipBehavior: Clip.none,
       fit: StackFit.expand,
       children: [
+        // --------------------------------------------------------
+        // BACK TEMPLATE
+        // --------------------------------------------------------
+
         for (int i = 0; i <= 4; i++) ...[
           if (templates[TemplateKind.back]?[i] != null)
             Opacity(
               opacity: i == nChosen && widget.showBackground ? 1 : 0,
-              child: ImageWithLoaderFallback.file(templates[TemplateKind.back]![i]!, fit: BoxFit.cover),
+              child: ImageWithLoaderFallback.file(
+                templates[TemplateKind.back]![i]!,
+                fit: BoxFit.cover,
+              ),
             ),
         ],
+
+        // --------------------------------------------------------
+        // PHOTO LAYOUT
+        // --------------------------------------------------------
         if (widget.showMiddleground)
           Padding(
             padding: EdgeInsets.all(gap + widget.padding),
             child: _getInnerLayout(localizations, context),
           ),
+
+        // --------------------------------------------------------
+        // DEBUG BORDER
+        // --------------------------------------------------------
         if (widget.debug != null)
           DecoratedBox(
             decoration: BoxDecoration(
-              border: Border.all(width: widget.padding, color: const ui.Color.fromARGB(126, 212, 53, 53)),
+              border: Border.all(
+                width: widget.padding,
+                color: const ui.Color.fromARGB(126, 212, 53, 53),
+              ),
             ),
             child: Padding(
               padding: EdgeInsets.all(widget.padding),
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  border: Border.all(width: gap, color: const ui.Color.fromARGB(127, 255, 255, 255)),
+                  border: Border.all(
+                    width: gap,
+                    color: const ui.Color.fromARGB(127, 255, 255, 255),
+                  ),
                 ),
               ),
             ),
           ),
+
+        // --------------------------------------------------------
+        // FRONT TEMPLATE
+        // --------------------------------------------------------
         for (int i = 0; i <= 4; i++) ...[
           if (templates[TemplateKind.front]?[i] != null)
             Opacity(
               opacity: i == nChosen && widget.showForeground ? 1 : 0,
-              child: ImageWithLoaderFallback.file(templates[TemplateKind.front]![i]!, fit: BoxFit.cover),
+              child: ImageWithLoaderFallback.file(
+                templates[TemplateKind.front]![i]!,
+                fit: BoxFit.cover,
+              ),
             ),
         ],
       ],
     );
   }
 
+  // ==============================================================
+  // CUSTOM TEMPLATE RENDERER
+  // ==============================================================
+
+  Widget _getCustomTemplateLayout(PhotoTemplate template) {
+    final scale = customTemplateScale;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      fit: StackFit.expand,
+      children: [
+        // --------------------------------------------------------
+        // BACKGROUND
+        // --------------------------------------------------------
+
+        if (widget.showBackground && template.backPath != null)
+          Positioned.fill(
+            child: ImageWithLoaderFallback.file(
+              File(template.backPath!),
+              fit: BoxFit.fill,
+            ),
+          ),
+
+        // --------------------------------------------------------
+        // PHOTOS
+        // --------------------------------------------------------
+        if (widget.showMiddleground)
+          ...List.generate(math.min(template.photos.length, nChosen), (index) {
+            final position = template.photos[index];
+
+            return Positioned(
+              left: position.x * scale,
+              top: position.y * scale,
+              width: position.width * scale,
+              height: position.height * scale,
+              child: ClipRect(
+                child: Transform.rotate(
+                  angle: position.rotation * math.pi / 180,
+                  child: _getCustomChosenImage(index),
+                ),
+              ),
+            );
+          }),
+
+        // --------------------------------------------------------
+        // FRONT / OVERLAY
+        // --------------------------------------------------------
+        if (widget.showForeground && template.frontPath != null)
+          Positioned.fill(
+            child: ImageWithLoaderFallback.file(
+              File(template.frontPath!),
+              fit: BoxFit.fill,
+            ),
+          ),
+
+        // --------------------------------------------------------
+        // DEBUG
+        // --------------------------------------------------------
+        if (widget.debug != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(width: 4, color: Colors.red),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ==============================================================
+  // CUSTOM PHOTO
+  // ==============================================================
+
+  Widget _getCustomChosenImage(int index) {
+    if (index >= chosen.length) {
+      return const SizedBox.shrink();
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: ImageWithLoaderFallback(
+        widget.debug == null
+            ? MemoryImage(photos[chosen[index]].data)
+            : const AssetImage('assets/bitmap/placeholder.png'),
+        applyRotateFlipCrop: false,
+        fit: BoxFit.cover,
+        onImageDecoded: (_) {
+          _onImageDecoded(index);
+        },
+      ),
+    );
+  }
+
+  // ==============================================================
+  // LEGACY LAYOUT
+  // ==============================================================
+
   Widget _getInnerLayout(AppLocalizations localizations, BuildContext context) {
     return switch (nChosen) {
       0 => _getZeroLayout(localizations, context),
-      1 when !getIt<SettingsManager>().settings.output.useFullFrame1PhotoLayout => _oneLayout,
-      1 when getIt<SettingsManager>().settings.output.useFullFrame1PhotoLayout => _oneFullFramePhotoLayout,
+
+      1
+          when !getIt<SettingsManager>()
+              .settings
+              .output
+              .useFullFrame1PhotoLayout =>
+        _oneLayout,
+
+      1
+          when getIt<SettingsManager>()
+              .settings
+              .output
+              .useFullFrame1PhotoLayout =>
+        _oneFullFramePhotoLayout,
+
       2 => _twoLayout,
+
       3 => _threeLayout,
+
       4 => _fourLayout,
+
       _ => const SizedBox.shrink(),
     };
   }
 
   Widget _getChosenImage(int index, {BoxFit? fit}) {
     return ImageWithLoaderFallback(
-      widget.debug == null ? MemoryImage(photos[chosen[index]].data) : AssetImage('assets/bitmap/placeholder.png'),
+      widget.debug == null
+          ? MemoryImage(photos[chosen[index]].data)
+          : const AssetImage('assets/bitmap/placeholder.png'),
       applyRotateFlipCrop: true,
       fit: fit,
-      onImageDecoded: (_) => _onImageDecoded(index),
+      onImageDecoded: (_) {
+        _onImageDecoded(index);
+      },
     );
   }
 
@@ -196,21 +423,18 @@ class PhotoCollageState extends State<PhotoCollage> with Logger {
       columnGap: gap,
       rowGap: gap,
       children: [
-        if (widget.showLogo)
-          const _CenteredLogo().inGridArea('l1header'),
-       _PhotoContainer(
+        if (widget.showLogo) const _CenteredLogo().inGridArea('l1header'),
+
+        _PhotoContainer(
           rotated: true,
           child: _getChosenImage(0),
-       ).inGridArea('l1content'),
+        ).inGridArea('l1content'),
       ],
     );
   }
 
   Widget get _oneFullFramePhotoLayout {
-    return _PhotoContainer(
-      rotated: true,
-      child: _getChosenImage(0),
-    );
+    return _PhotoContainer(rotated: true, child: _getChosenImage(0));
   }
 
   Widget get _twoLayout {
@@ -225,12 +449,11 @@ class PhotoCollageState extends State<PhotoCollage> with Logger {
       columnGap: gap,
       rowGap: gap,
       children: [
-        if (widget.showLogo)
-          const _CenteredLogo().inGridArea('l2header'),
+        if (widget.showLogo) const _CenteredLogo().inGridArea('l2header'),
+
         for (int i = 0; i < nChosen; i++) ...[
-          _PhotoContainer(
-            child: _getChosenImage(i),
-          ).inGridArea('l2content${i + 1}'),
+          _PhotoContainer(child: _getChosenImage(i))
+              .inGridArea('l2content${i + 1}'),
         ],
       ],
     );
@@ -246,20 +469,20 @@ class PhotoCollageState extends State<PhotoCollage> with Logger {
         ''',
       rowSizes: [1.fr, auto, auto, auto],
       columnSizes: [1.fr, 1.fr],
-      columnGap: 2*gap,
+      columnGap: 2 * gap,
       rowGap: gap,
       children: [
         if (widget.showLogo) ...[
           const _CenteredLogo().inGridArea('l3header1'),
           const _CenteredLogo().inGridArea('l3header2'),
         ],
+
         for (int i = 0; i < nChosen; i++) ...[
-          _PhotoContainer(
-            child: _getChosenImage(i),
-          ).inGridArea('l3content${i + 1}'),
-          _PhotoContainer(
-            child: _getChosenImage(i),
-          ).inGridArea('l3content${i + 4}'),
+          _PhotoContainer(child: _getChosenImage(i))
+              .inGridArea('l3content${i + 1}'),
+
+          _PhotoContainer(child: _getChosenImage(i))
+              .inGridArea('l3content${i + 4}'),
         ],
       ],
     );
@@ -287,73 +510,106 @@ class PhotoCollageState extends State<PhotoCollage> with Logger {
             ],
           ],
         ),
+
         if (widget.showLogo)
           const Padding(
             padding: EdgeInsets.all(250),
-            child: RotatedBox(
-              quarterTurns: 1,
-              child: _CenteredLogo(),
-            ),
+            child: RotatedBox(quarterTurns: 1, child: _CenteredLogo()),
           ),
       ],
     );
   }
 
-  Future<Uint8List?> getCollageImage({required CreatedByMode createdByMode, required double pixelRatio, ExportFormat format = ExportFormat.jpgFormat, int jpgQuality = 80}) async {
-    // Await frame render, should workaround the black image issue
+  // ==============================================================
+  // EXPORT
+  // ==============================================================
+
+  Future<Uint8List?> getCollageImage({
+    required CreatedByMode createdByMode,
+    required double pixelRatio,
+    ExportFormat format = ExportFormat.jpgFormat,
+    int jpgQuality = 80,
+  }) async {
+    // Await frame render, should workaround the black image issue.
     await waitForPostFrameCallback();
 
     if (format == ExportFormat.pngFormat) {
       return screenshotController.capture(pixelRatio: pixelRatio);
     }
 
-    // Capture widget as RGBA image
-    final image = await screenshotController.captureAsUiImage(pixelRatio: pixelRatio);
-    final byteData = await image!.toByteData(format: ui.ImageByteFormat.rawRgba);
+    // Capture widget as RGBA image.
+    final image = await screenshotController.captureAsUiImage(
+      pixelRatio: pixelRatio,
+    );
 
-    // Previously we did the conversion to JPEG like this, but it turned out pretty slow
-    //final dartImage = img.Image.fromBytes(width: image.width, height: image.height, bytes: byteData!.buffer, numChannels: 4, order: img.ChannelOrder.rgba);
-    //final jpg = img.encodeJpg(dartImage, quality: jpgQuality);
+    final byteData = await image!.toByteData(
+      format: ui.ImageByteFormat.rawRgba,
+    );
 
-    // Rotate image and encode to JPEG
-    final rawImage = RawImage(format: RawImageFormat.rgba, data: byteData!.buffer.asUint8List(), width: image.width, height: image.height);
-    final List<ImageOperation> operationsBeforeEncoding = rotation == 1 ? [const ImageOperation.rotate(Rotation.rotate270)] : [];
+    // Rotate image and encode to JPEG.
+    final rawImage = RawImage(
+      format: RawImageFormat.rgba,
+      data: byteData!.buffer.asUint8List(),
+      width: image.width,
+      height: image.height,
+    );
+
+    final List<ImageOperation> operationsBeforeEncoding = rotation == 1
+        ? [const ImageOperation.rotate(Rotation.rotate270)]
+        : [];
 
     final stopwatch = Stopwatch()..start();
+
     final jpegData = await jpegEncode(
       rawImage: rawImage,
       quality: jpgQuality,
       exifTags: [
-        const MomentoBoothExifTag.imageDescription("Photo collage created with MomentoBooth"),
+        const MomentoBoothExifTag.imageDescription(
+          "Photo collage created with MomentoBooth",
+        ),
+
         MomentoBoothExifTag.software(exifTagSoftwareName),
+
         MomentoBoothExifTag.createDate(DateTime.now()),
-        MomentoBoothExifTag.makerNote(jsonEncode(MakerNoteData(
-          sourcePhotos: chosenPhotos.map(
-            (photo) => SourcePhoto(
-              filename: photo.filename,
-              sha256: sha256.convert(photo.data).toString(),
-            ),
-          ).toList(),
-          captureMode: createdByMode,
-        ).toJson())),
+
+        MomentoBoothExifTag.makerNote(
+          jsonEncode(
+            MakerNoteData(
+              sourcePhotos: chosenPhotos
+                  .map(
+                    (photo) => SourcePhoto(
+                      filename: photo.filename,
+                      sha256: sha256.convert(photo.data).toString(),
+                    ),
+                  )
+                  .toList(),
+              captureMode: createdByMode,
+            ).toJson(),
+          ),
+        ),
       ],
       operationsBeforeEncoding: operationsBeforeEncoding,
     );
+
     logDebug('JPEG encoding took ${stopwatch.elapsed}');
 
     return jpegData;
   }
 
   Future<void> waitForPostFrameCallback() {
-    Completer completer = Completer();
+    final Completer completer = Completer();
+
     WidgetsBinding.instance.addPostFrameCallback((_) => completer.complete());
+
     return completer.future;
   }
-
 }
 
-class _CenteredLogo extends StatelessWidget {
+// ============================================================================
+// LOGO
+// ============================================================================
 
+class _CenteredLogo extends StatelessWidget {
   const _CenteredLogo();
 
   @override
@@ -365,11 +621,13 @@ class _CenteredLogo extends StatelessWidget {
       ),
     );
   }
-
 }
 
-class _PhotoContainer extends StatelessWidget {
+// ============================================================================
+// LEGACY PHOTO CONTAINER
+// ============================================================================
 
+class _PhotoContainer extends StatelessWidget {
   final bool rotated;
   final Widget child;
 
@@ -379,17 +637,16 @@ class _PhotoContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.expand(
       child: AspectRatio(
-        aspectRatio: getIt<SettingsManager>().settings.hardware.liveViewAndCaptureAspectRatio,
+        aspectRatio: getIt<SettingsManager>()
+            .settings
+            .hardware
+            .liveViewAndCaptureAspectRatio,
         child: FittedBox(
           fit: BoxFit.cover,
           clipBehavior: ui.Clip.hardEdge,
-          child: RotatedBox(
-            quarterTurns: rotated ? 1 : 0,
-            child: child,
-          ),
+          child: RotatedBox(quarterTurns: rotated ? 1 : 0, child: child),
         ),
       ),
     );
   }
-
 }

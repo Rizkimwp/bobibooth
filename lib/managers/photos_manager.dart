@@ -15,15 +15,24 @@ import 'package:momento_booth/models/settings.dart';
 import 'package:momento_booth/utils/file_utils.dart';
 import 'package:momento_booth/utils/hardware.dart';
 import 'package:momento_booth/utils/logger.dart';
-import 'package:path/path.dart' show basename, join; // Without show mobx complains
+import 'package:path/path.dart'
+    show basename, join; // Without show mobx complains
 import 'package:path_provider/path_provider.dart';
 
 part 'photos_manager.g.dart';
 
 class PhotosManager = PhotosManagerBase with _$PhotosManager;
 
-/// Class containing global state for photos in the app
+/// Class containing global state for photos in the app.
 abstract class PhotosManagerBase with Store, Logger {
+  // ============================================================
+  // OBSERVABLE STATE
+  // ============================================================
+  @observable
+  bool cameraUnavailable = false;
+
+  @observable
+  String? cameraErrorMessage;
 
   @observable
   ObservableList<PhotoCapture> photos = ObservableList<PhotoCapture>();
@@ -38,130 +47,447 @@ abstract class PhotosManagerBase with Store, Logger {
   CaptureMode captureMode = CaptureMode.single;
 
   @computed
-  bool get showLiveViewBackground => photos.isEmpty && captureMode == CaptureMode.single;
+  bool get showLiveViewBackground =>
+      photos.isEmpty && captureMode == CaptureMode.single;
+
+  // ============================================================
+  // OUTPUT
+  // ============================================================
 
   Directory get outputDir => getIt<ProjectManager>().getOutputDir();
+
   int photoNumber = 0;
+
   bool photoNumberChecked = false;
 
   final String baseName = "MomentoBooth-image";
 
-  Iterable<PhotoCapture> get chosenPhotos => chosen.map((choice) => photos[choice]);
+  Iterable<PhotoCapture> get chosenPhotos =>
+      chosen.map((choice) => photos[choice]);
 
   File? _lastPhotoFile;
+
   File? get lastPhotoFile => _lastPhotoFile;
+
+  // ============================================================
+  // RESET
+  // ============================================================
 
   @action
   void reset({bool advance = true}) {
     photos.clear();
     chosen.clear();
+
     captureMode = CaptureMode.single;
+
     if (advance) {
       photoNumber++;
       _lastPhotoFile = null;
     }
   }
 
+  // ============================================================
+  // WRITE OUTPUT
+  // ============================================================
+
   @action
   Future<File?> writeOutput({bool advance = false}) async {
-    if (outputImage == null) return null;
+    if (outputImage == null) {
+      return null;
+    }
+
     if (!photoNumberChecked) {
       photoNumber = await findLastImageNumber() + 1;
+
       photoNumberChecked = true;
     }
-    final fileExtension = getIt<SettingsManager>().settings.output.exportFormat.name.toLowerCase();
-    final filePath = join(outputDir.path, '$baseName-${photoNumber.toString().padLeft(4, '0')}.$fileExtension');
-    if (advance) photoNumber++;
-    final f = await writeBytesToFileLocked(filePath, outputImage!);
-    _lastPhotoFile = f;
-    return f;
+
+    final fileExtension = getIt<SettingsManager>()
+        .settings
+        .output
+        .exportFormat
+        .name
+        .toLowerCase();
+
+    final filePath = join(
+      outputDir.path,
+      '$baseName-'
+      '${photoNumber.toString().padLeft(4, '0')}'
+      '.$fileExtension',
+    );
+
+    if (advance) {
+      photoNumber++;
+    }
+
+    final file = await writeBytesToFileLocked(filePath, outputImage!);
+
+    _lastPhotoFile = file;
+
+    return file;
   }
+
+  // ============================================================
+  // FIND LAST IMAGE NUMBER
+  // ============================================================
 
   @action
   Future<int> findLastImageNumber() async {
-    if (!outputDir.existsSync()) outputDir.createSync();
-    final fileListBefore = await outputDir.list().toList();
-    final matchingFiles = fileListBefore.whereType<File>().where((file) => basename(file.path).startsWith(baseName));
+    if (!outputDir.existsSync()) {
+      outputDir.createSync();
+    }
 
-    if (matchingFiles.isEmpty) return 0;
+    final fileListBefore = await outputDir.list().toList();
+
+    final matchingFiles = fileListBefore.whereType<File>().where(
+      (file) => basename(file.path).startsWith(baseName),
+    );
+
+    if (matchingFiles.isEmpty) {
+      return 0;
+    }
 
     final lastImg = matchingFiles.last;
+
     final pattern = RegExp(r'\d+');
+
     final match = pattern.firstMatch(basename(lastImg.path));
+
     return match != null ? int.parse(match.group(0) ?? "0") : 0;
   }
 
+  // ============================================================
+  // TEMP OUTPUT
+  // ============================================================
+
   Future<File> getOutputImageAsTempFile() async {
     final Directory tempDir = await getTemporaryDirectory();
-    final fileExtension = getIt<SettingsManager>().settings.output.exportFormat.name.toLowerCase();
+
+    final fileExtension = getIt<SettingsManager>()
+        .settings
+        .output
+        .exportFormat
+        .name
+        .toLowerCase();
+
     final filePath = join(tempDir.path, 'image.$fileExtension');
+
     return await writeBytesToFileLocked(filePath, outputImage!);
   }
 
-  Future<Uint8List> getOutputPDF(PrintSize printSize) => getImagePdfWithPageSize(outputImage!, printSize);
+  // ============================================================
+  // PDF
+  // ============================================================
 
-  PhotoCaptureMethod get capturer => switch (getIt<SettingsManager>().settings.hardware.captureMethod) {
-    CaptureMethod.liveViewSource => LiveViewStreamSnapshotCapturer(),
-    CaptureMethod.sonyImagingEdgeDesktop => SonyRemotePhotoCapture(getIt<SettingsManager>().settings.hardware.captureLocation),
-    CaptureMethod.gPhoto2 => getIt<LiveViewManager>().gPhoto2Camera!,
-  };
-
-  Future<PhotoCapture> directPhotoCapture() async {
-    final capturer = this.capturer;
-    await capturer.clearPreviousEvents();
-    await captureAndGetPhoto(capturer, () => {});
-    return photos.last;
+  Future<Uint8List> getOutputPDF(PrintSize printSize) {
+    return getImagePdfWithPageSize(outputImage!, printSize);
   }
 
-  void initiateDelayedPhotoCapture(VoidCallback onCaptureFinished, {int? captureDelayOverride}) {
-    final capturer = this.capturer
-    ..clearPreviousEvents();
+  // ============================================================
+  // GET CURRENT CAPTURER
+  //
+  // PENTING:
+  // gPhoto2Camera TIDAK BOLEH menggunakan "!"
+  //
+  // Kalau kamera belum siap, return null.
+  // ============================================================
 
-    int counterStart = captureDelayOverride ?? getIt<SettingsManager>().settings.captureDelaySeconds;
-    int autoFocusMsBeforeCapture = getIt<SettingsManager>().settings.hardware.gPhoto2AutoFocusMsBeforeCapture;
-    Duration photoDelay = Duration(seconds: counterStart) - capturer.captureDelay + flashStartDuration;
-    Duration autoFocusDelay = photoDelay - Duration(milliseconds: autoFocusMsBeforeCapture);
+  PhotoCaptureMethod? get capturer {
+    final captureMethod =
+        getIt<SettingsManager>().settings.hardware.captureMethod;
 
-    if (autoFocusMsBeforeCapture > 0 && autoFocusDelay > Duration.zero && capturer is GPhoto2Camera) {
-      Future.delayed(autoFocusDelay).then((_) => capturer.autoFocus());
+    switch (captureMethod) {
+      // ----------------------------------------------------------
+      // LIVE VIEW SOURCE
+      // ----------------------------------------------------------
+
+      case CaptureMethod.liveViewSource:
+        return LiveViewStreamSnapshotCapturer();
+
+      // ----------------------------------------------------------
+      // SONY IMAGING EDGE
+      // ----------------------------------------------------------
+
+      case CaptureMethod.sonyImagingEdgeDesktop:
+        return SonyRemotePhotoCapture(
+          getIt<SettingsManager>().settings.hardware.captureLocation,
+        );
+
+      // ----------------------------------------------------------
+      // GPHOTO2
+      // ----------------------------------------------------------
+
+      case CaptureMethod.gPhoto2:
+        final camera = getIt<LiveViewManager>().gPhoto2Camera;
+
+        if (camera == null) {
+          logWarning('GPhoto2 camera belum siap.');
+
+          return null;
+        }
+
+        return camera;
+    }
+  }
+
+  // ============================================================
+  // DIRECT PHOTO CAPTURE
+  // ============================================================
+
+  Future<PhotoCapture?> directPhotoCapture() async {
+    final capturer = this.capturer;
+
+    // ----------------------------------------------------------
+    // CAMERA BELUM SIAP
+    // ----------------------------------------------------------
+
+    if (capturer == null) {
+      logWarning(
+        'Direct capture dibatalkan: '
+        'camera belum siap.',
+      );
+
+      return null;
     }
 
-    Future.delayed(photoDelay).then((_) => captureAndGetPhoto(capturer, onCaptureFinished));
-    getIt<MqttManager>().publishCaptureState(CaptureState.countdown);
+    try {
+      await capturer.clearPreviousEvents();
+
+      await captureAndGetPhoto(capturer, () {});
+
+      // --------------------------------------------------------
+      // JANGAN return photos.last kalau capture gagal
+      // --------------------------------------------------------
+
+      if (photos.isEmpty) {
+        return null;
+      }
+
+      return photos.last;
+    } catch (error, stackTrace) {
+      logWarning(
+        'Direct photo capture gagal: '
+        '$error\n'
+        '$stackTrace',
+      );
+
+      return null;
+    }
   }
 
-  Future<void> captureAndGetPhoto(PhotoCaptureMethod capturer, VoidCallback onCaptureFinished) async {
-    getIt<MqttManager>().publishCaptureState(CaptureState.capturing);
+  // ============================================================
+  // CAPTURE NOW
+  //
+  // DIPAKAI OLEH MANUAL TAKE PHOTO
+  // SETELAH COUNTDOWN SELESAI
+  // ============================================================
+
+  Future<void> captureNow(VoidCallback onCaptureFinished) async {
+    // ----------------------------------------------------------
+    // AMBIL CAMERA
+    // ----------------------------------------------------------
+
+    final capturer = this.capturer;
+
+    // ----------------------------------------------------------
+    // CAMERA BELUM SIAP
+    // ----------------------------------------------------------
+
+    if (capturer == null) {
+      logWarning(
+        'Capture dibatalkan: '
+        'camera belum siap.',
+      );
+
+      onCaptureFinished();
+
+      return;
+    }
 
     try {
-      final image = await capturer.captureAndGetPhoto();
-      getIt<StatsManager>().addCapturedPhoto();
-      photos.add(image);
-    } catch (error) {
-      logWarning(error);
-      final ByteData data = await rootBundle.load('assets/bitmap/capture-error.png');
-      photos.add(PhotoCapture(
-        data: data.buffer.asUint8List(),
-        filename: "capture-error.png",
-      ));
-    } finally {
+      // --------------------------------------------------------
+      // CLEAR PREVIOUS CAMERA EVENTS
+      // --------------------------------------------------------
+
+      await capturer.clearPreviousEvents();
+
+      // --------------------------------------------------------
+      // CAPTURE
+      // --------------------------------------------------------
+
+      await captureAndGetPhoto(capturer, onCaptureFinished);
+    } catch (error, stackTrace) {
+      logWarning(
+        'Capture now gagal: '
+        '$error\n'
+        '$stackTrace',
+      );
+
       onCaptureFinished();
+
       getIt<MqttManager>().publishCaptureState(CaptureState.idle);
     }
   }
 
+  // ============================================================
+  // ORIGINAL DELAYED CAPTURE
+  // ============================================================
+
+  void initiateDelayedPhotoCapture(
+    VoidCallback onCaptureFinished, {
+    int? captureDelayOverride,
+  }) {
+    // ----------------------------------------------------------
+    // GET CAMERA
+    // ----------------------------------------------------------
+
+    final capturer = this.capturer;
+
+    // ----------------------------------------------------------
+    // CAMERA BELUM SIAP
+    // ----------------------------------------------------------
+
+    if (capturer == null) {
+      logWarning(
+        'Delayed capture dibatalkan: '
+        'camera belum siap.',
+      );
+
+      onCaptureFinished();
+
+      return;
+    }
+
+    // ----------------------------------------------------------
+    // CLEAR EVENTS
+    // ----------------------------------------------------------
+
+    capturer.clearPreviousEvents();
+
+    // ----------------------------------------------------------
+    // SETTINGS
+    // ----------------------------------------------------------
+
+    final int counterStart =
+        captureDelayOverride ??
+        getIt<SettingsManager>().settings.captureDelaySeconds;
+
+    final int autoFocusMsBeforeCapture = getIt<SettingsManager>()
+        .settings
+        .hardware
+        .gPhoto2AutoFocusMsBeforeCapture;
+
+    // ----------------------------------------------------------
+    // PHOTO DELAY
+    // ----------------------------------------------------------
+
+    final Duration photoDelay =
+        Duration(seconds: counterStart) -
+        capturer.captureDelay +
+        flashStartDuration;
+
+    final Duration autoFocusDelay =
+        photoDelay - Duration(milliseconds: autoFocusMsBeforeCapture);
+
+    // ----------------------------------------------------------
+    // AUTO FOCUS
+    // ----------------------------------------------------------
+
+    if (autoFocusMsBeforeCapture > 0 &&
+        autoFocusDelay > Duration.zero &&
+        capturer is GPhoto2Camera) {
+      Future.delayed(autoFocusDelay).then((_) {
+        try {
+          capturer.autoFocus();
+        } catch (error, stackTrace) {
+          logWarning(
+            'Auto focus gagal: '
+            '$error\n'
+            '$stackTrace',
+          );
+        }
+      });
+    }
+
+    // ----------------------------------------------------------
+    // CAPTURE
+    // ----------------------------------------------------------
+
+    Future.delayed(photoDelay).then((_) {
+      captureAndGetPhoto(capturer, onCaptureFinished);
+    });
+
+    // ----------------------------------------------------------
+    // MQTT
+    // ----------------------------------------------------------
+
+    getIt<MqttManager>().publishCaptureState(CaptureState.countdown);
+  }
+
+  // ============================================================
+  // ACTUAL CAPTURE
+  // ============================================================
+
+  Future<void> captureAndGetPhoto(
+    PhotoCaptureMethod capturer,
+    VoidCallback onCaptureFinished,
+  ) async {
+    getIt<MqttManager>().publishCaptureState(CaptureState.capturing);
+
+    cameraUnavailable = false;
+    cameraErrorMessage = null;
+
+    try {
+      final image = await capturer.captureAndGetPhoto();
+
+      getIt<StatsManager>().addCapturedPhoto();
+
+      photos.add(image);
+
+      logDebug('Photo berhasil diambil. Total photo: ${photos.length}');
+    } catch (error, stackTrace) {
+      logWarning('Camera capture gagal: $error');
+
+      logWarning('$stackTrace');
+
+      cameraUnavailable = true;
+
+      cameraErrorMessage = _getCameraErrorMessage(error);
+
+      logWarning('Photo tidak ditambahkan karena capture gagal.');
+    } finally {
+      onCaptureFinished();
+
+      getIt<MqttManager>().publishCaptureState(CaptureState.idle);
+    }
+}
 }
 
-enum CaptureMode {
+String _getCameraErrorMessage(Object error) {
+  final message = error.toString().toLowerCase();
 
+  if (message.contains('null check operator')) {
+    return 'Kamera belum siap atau live view tidak tersedia.';
+  }
+
+  if (message.contains('camera')) {
+    return error.toString();
+  }
+
+  return 'Kamera tidak tersedia. Silakan periksa koneksi kamera.';
+}
+// ============================================================
+// CAPTURE MODE
+// ============================================================
+
+enum CaptureMode {
   single(0, "Single"),
+
   collage(1, "Collage");
 
-  // can add more properties or getters/methods if needed
   final int value;
+
   final String name;
 
-  // can use named parameters if you want
   const CaptureMode(this.value, this.name);
-
 }

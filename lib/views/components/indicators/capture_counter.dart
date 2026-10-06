@@ -5,7 +5,6 @@ import 'package:momento_booth/main.dart';
 import 'package:momento_booth/managers/project_manager.dart';
 
 class CaptureCounter extends StatefulWidget {
-
   final VoidCallback onCounterFinished;
   final int counterStart;
 
@@ -17,19 +16,24 @@ class CaptureCounter extends StatefulWidget {
 
   @override
   State<CaptureCounter> createState() => CaptureCounterState();
-
 }
 
-class CaptureCounterState extends State<CaptureCounter> with SingleTickerProviderStateMixin {
+class CaptureCounterState extends State<CaptureCounter>
+    with SingleTickerProviderStateMixin {
+  late final controller =
+      AnimationController(
+          vsync: this,
+          duration: Duration(seconds: widget.counterStart),
+        )
+        ..addListener(() {
+          setState(() {});
+        })
+        ..reverse(from: 1);
 
-  late final controller = AnimationController(
-    vsync: this,
-    duration: Duration(seconds: widget.counterStart),
-  )..addListener(() {
-    setState(() {});
-  })..reverse(from: 1);
-
-  RotateAnimatedText _getCounterAnimatedText(String text, BuildContext context) {
+  RotateAnimatedText _getCounterAnimatedText(
+    String text,
+    BuildContext context,
+  ) {
     TextStyle textStyle = context.theme.captureCounterTheme.textStyle;
     return RotateAnimatedText(
       text,
@@ -62,10 +66,15 @@ class CaptureCounterState extends State<CaptureCounter> with SingleTickerProvide
         clipBehavior: Clip.none,
         fit: StackFit.expand,
         children: [
-          context.theme.captureCounterTheme.frameBuilder?.call(context, frame) ?? frame,
+          // Countdown angka tanpa background/frame
+          Center(child: frame),
+
+          // Ring countdown
           ProgressRing(
             value: controller.value * 100,
-            activeColor: context.theme.captureCounterTheme.ringColor ?? getIt<ProjectManager>().settings.primaryColor,
+            activeColor:
+                context.theme.captureCounterTheme.ringColor ??
+                getIt<ProjectManager>().settings.primaryColor,
             backgroundColor: Colors.transparent,
             strokeWidth: context.theme.captureCounterTheme.ringStroke ?? 9,
           ),
@@ -79,5 +88,4 @@ class CaptureCounterState extends State<CaptureCounter> with SingleTickerProvide
     controller.dispose();
     super.dispose();
   }
-
 }

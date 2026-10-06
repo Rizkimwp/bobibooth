@@ -7,14 +7,13 @@ import 'package:momento_booth/src/rust/models/images.dart';
 import 'package:momento_booth/src/rust/models/live_view.dart';
 
 class NokhwaCamera extends LiveViewSource {
-
   @override
   final String id;
 
   @override
   final String friendlyName;
 
-  late int handleId;
+  int? handleId;
 
   static Future<void>? _initFuture;
 
@@ -33,6 +32,7 @@ class NokhwaCamera extends LiveViewSource {
 
   static Future<List<NokhwaCameraInfo>> listCameras() async {
     await _ensureLibraryInitialized();
+
     return await nokhwaGetCameras();
   }
 
@@ -43,7 +43,8 @@ class NokhwaCamera extends LiveViewSource {
   static Future<List<ComboBoxItem<String>>> getCamerasAsComboBoxItems() async =>
       (await getAllCameras()).map((value) => value.toComboBoxItem()).toList();
 
-  ComboBoxItem<String> toComboBoxItem() => ComboBoxItem(value: id, child: Text(friendlyName));
+  ComboBoxItem<String> toComboBoxItem() =>
+      ComboBoxItem(value: id, child: Text(friendlyName));
 
   // ////////////// //
   // Control camera //
@@ -55,6 +56,7 @@ class NokhwaCamera extends LiveViewSource {
     List<ImageOperation> operations = const [],
   }) async {
     await _ensureLibraryInitialized();
+
     handleId = await nokhwaOpenCamera(
       friendlyName: friendlyName,
       operations: operations,
@@ -63,22 +65,58 @@ class NokhwaCamera extends LiveViewSource {
   }
 
   @override
-  Future<void> setOperations(List<ImageOperation> operations) {
-    return nokhwaSetOperations(handleId: handleId, operations: operations);
+  Future<void> setOperations(List<ImageOperation> operations) async {
+    final handle = handleId;
+
+    if (handle == null) {
+      return;
+    }
+
+    await nokhwaSetOperations(handleId: handle, operations: operations);
   }
 
   @override
-  Future<RawImage?> getLastFrame() => nokhwaGetLastFrame(handleId: handleId);
+  Future<RawImage?> getLastFrame() async {
+    final handle = handleId;
+
+    if (handle == null) {
+      return null;
+    }
+
+    return await nokhwaGetLastFrame(handleId: handle);
+  }
 
   @override
-  Future<CameraState> getCameraState() => nokhwaGetCameraStatus(handleId: handleId);
+  Future<CameraState> getCameraState() async {
+    final handle = handleId;
+
+    if (handle == null) {
+      // Sesuaikan dengan enum CameraState yang tersedia
+      throw StateError('Camera has not been opened');
+    }
+
+    return await nokhwaGetCameraStatus(handleId: handle);
+  }
 
   @override
-  Future<void> dispose() => nokhwaCloseCamera(handleId: handleId);
+  Future<void> dispose() async {
+    final handle = handleId;
+
+    // Kamera belum pernah berhasil dibuka.
+    if (handle == null) {
+      return;
+    }
+
+    try {
+      await nokhwaCloseCamera(handleId: handle);
+    } finally {
+      handleId = null;
+    }
+  }
 
   static Future<void> _ensureLibraryInitialized() async {
     _initFuture ??= nokhwaInitialize();
+
     await _initFuture;
   }
-
 }

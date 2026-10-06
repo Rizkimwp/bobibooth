@@ -8,6 +8,7 @@ import 'package:momento_booth/views/photo_booth_screen/screens/gallery_screen/ga
 import 'package:momento_booth/views/photo_booth_screen/screens/multi_capture_screen/multi_capture_screen.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/navigation_screen/navigation_screen_view_model.dart';
 import 'package:momento_booth/views/photo_booth_screen/screens/single_capture_screen/single_capture_screen.dart';
+import 'package:momento_booth/views/photo_booth_screen/screens/template_screen/template_screen.dart';
 
 class NavigationScreenController extends ScreenControllerBase<NavigationScreenViewModel> {
 
@@ -58,6 +59,10 @@ class NavigationScreenController extends ScreenControllerBase<NavigationScreenVi
 
   void onClickGallery() {
     router.push(GalleryScreen.defaultRoute);
+  }
+
+  void onClickTemplate() {
+    router.push(TemplateScreen.defaultRoute);
   }
 
   Future<void> onClickLanguage() async {
