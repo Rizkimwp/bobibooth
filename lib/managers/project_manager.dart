@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
-import 'dart:convert';
 
 import 'package:args/args.dart';
 import 'package:collection/collection.dart';
@@ -13,6 +13,7 @@ import 'package:momento_booth/managers/settings_manager.dart';
 import 'package:momento_booth/managers/stats_manager.dart';
 import 'package:momento_booth/managers/window_manager.dart';
 import 'package:momento_booth/models/fs_watcher_event_type.dart';
+import 'package:momento_booth/models/photo_template.dart';
 import 'package:momento_booth/models/project_data.dart';
 import 'package:momento_booth/models/project_settings.dart';
 import 'package:momento_booth/models/stats.dart';
@@ -22,7 +23,7 @@ import 'package:momento_booth/repositories/serializable/serializable_repository.
 import 'package:momento_booth/repositories/serializable/toml_serializable_repository.dart';
 import 'package:momento_booth/utils/logger.dart';
 import 'package:path/path.dart' hide context;
-import 'package:momento_booth/models/photo_template.dart';
+
 part 'project_manager.g.dart';
 
 class ProjectManager = ProjectManagerBase with _$ProjectManager;

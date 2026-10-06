@@ -85,7 +85,7 @@ class MultiCaptureScreenView
                               return const SizedBox();
                             }
 
-                            return Container(
+                            return ColoredBox(
                               color: const Color(0x88000000),
                               child: Center(
                                 child: LoadingDialog.cameraDownload(
@@ -246,7 +246,7 @@ class MultiCaptureScreenView
                 return ListView.separated(
                   physics: const BouncingScrollPhysics(),
                   itemCount: maxPhotos,
-                  separatorBuilder: (_, __) {
+                  separatorBuilder: (_, _) {
                     return const SizedBox(height: 12);
                   },
                   itemBuilder: (_, index) {
@@ -403,7 +403,7 @@ class MultiCaptureScreenView
   // ============================================================
 
   Widget _photoPlaceholder(int index) {
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: const Color(0xFFFFFFFF),
         borderRadius: BorderRadius.circular(16),
@@ -491,7 +491,7 @@ class MultiCaptureScreenView
           return const SizedBox();
         }
 
-        return Container(
+        return ColoredBox(
           color: const Color.fromARGB(51, 228, 195, 195),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -532,7 +532,7 @@ class MultiCaptureScreenView
   // ============================================================
 
   Widget get _cameraUnavailableOverlay {
-    return Container(
+    return ColoredBox(
       color: const Color.fromARGB(237, 227, 243, 3),
       child: Center(
         child: Container(

@@ -253,7 +253,7 @@ class CollageMakerScreenView
         final items = [
           ...defaultTemplates,
           ...customTemplates.map(
-            (template) => _TemplateItem.customTemplate(template),
+            _TemplateItem.customTemplate,
           ),
         ];
 
@@ -425,7 +425,7 @@ class CollageMakerScreenView
     final file = item.file;
 
     if (file == null || !file.existsSync()) {
-      return Container(
+      return DecoratedBox(
         decoration: BoxDecoration(
           color: const Color(0xFFE9EFEC),
           borderRadius: BorderRadius.circular(12),
@@ -639,7 +639,7 @@ class CollageMakerScreenView
                     AnimatedOpacity(
                       opacity: isSelected ? 1 : 0,
                       duration: const Duration(milliseconds: 160),
-                      child: Container(
+                      child: ColoredBox(
                         color: const Color(0x99000000),
                         child: Center(
                           child: Container(
@@ -862,7 +862,7 @@ class _TemplateItem {
 
   String get title {
     if (isDefault) {
-      return 'Default ${photoCount} Photos';
+      return 'Default $photoCount Photos';
     }
 
     return template?.name ?? 'Template';

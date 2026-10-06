@@ -634,7 +634,7 @@ class ShareScreenView
                     Text(
                       'Your photo is ready!',
                       textAlign: TextAlign.center,
-                      style: theme.titleTheme.style?.copyWith(
+                      style: theme.titleTheme.style.copyWith(
                         color: Colors.white,
                         fontSize: 34,
                         fontWeight: FontWeight.w800,

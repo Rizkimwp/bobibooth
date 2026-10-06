@@ -24,7 +24,7 @@ class NavigationScreenView
 
   @override
   Widget get body {
-    return Container(
+    return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

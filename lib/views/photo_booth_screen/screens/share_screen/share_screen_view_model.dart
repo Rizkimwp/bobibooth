@@ -14,7 +14,6 @@ import 'package:momento_booth/models/maker_note_data.dart';
 import 'package:momento_booth/models/photo_template.dart';
 import 'package:momento_booth/models/project_settings.dart';
 import 'package:momento_booth/src/rust/api/ffsend.dart';
-import 'package:momento_booth/src/rust/utils/ffsend_client.dart';
 import 'package:momento_booth/views/base/screen_view_model_base.dart';
 import 'package:momento_booth/views/components/imaging/photo_collage.dart';
 

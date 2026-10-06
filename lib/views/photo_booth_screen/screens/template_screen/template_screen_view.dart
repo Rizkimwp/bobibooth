@@ -18,7 +18,7 @@ class TemplateScreenView
 
   @override
   Widget get body {
-    return Container(
+    return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -288,7 +288,7 @@ class TemplateScreenView
   Widget _templatePreview(PhotoTemplate template, {required bool selected}) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: Container(
+      child: ColoredBox(
         color: const Color(0xFF06110C),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -361,7 +361,7 @@ class TemplateScreenView
       child: Image.file(
         File(template.backPath!),
         fit: BoxFit.fill,
-        errorBuilder: (_, __, ___) {
+        errorBuilder: (_, _, _) {
           return const ColoredBox(color: Color(0xFF101B16));
         },
       ),
@@ -381,7 +381,7 @@ class TemplateScreenView
       child: Image.file(
         File(template.frontPath!),
         fit: BoxFit.fill,
-        errorBuilder: (_, __, ___) {
+        errorBuilder: (_, _, _) {
           return const SizedBox.shrink();
         },
       ),
@@ -406,7 +406,7 @@ class TemplateScreenView
       height: photo.height * scaleY,
       child: Transform.rotate(
         angle: angle,
-        child: Container(
+        child: DecoratedBox(
           decoration: BoxDecoration(
             color: const Color(0xFF1C3027),
             border: Border.all(color: Colors.white.withAlpha(45), width: 1),

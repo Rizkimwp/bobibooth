@@ -158,7 +158,7 @@ class SingleCaptureScreenView
             children: [
               Text(
                 'Ready?',
-                style: theme.titleTheme.style?.copyWith(
+                style: theme.titleTheme.style.copyWith(
                   color: Colors.white,
                   fontSize: 42,
                   fontWeight: FontWeight.w700,
@@ -189,14 +189,14 @@ class SingleCaptureScreenView
             animatedTexts: [
               RotateAnimatedText(
                 localizations.captureScreenGetReady,
-                textStyle: theme.titleTheme.style?.copyWith(
+                textStyle: theme.titleTheme.style.copyWith(
                   color: Colors.white,
                 ),
                 duration: const Duration(milliseconds: 1000),
               ),
               RotateAnimatedText(
                 localizations.captureScreenLookAtCamera,
-                textStyle: theme.titleTheme.style?.copyWith(
+                textStyle: theme.titleTheme.style.copyWith(
                   color: Colors.white,
                 ),
                 duration: const Duration(milliseconds: 1000),

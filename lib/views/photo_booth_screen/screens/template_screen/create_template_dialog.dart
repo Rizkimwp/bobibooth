@@ -136,7 +136,7 @@ class _CreateTemplateDialogState extends State<CreateTemplateDialog> {
     return value
         .trim()
         .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+        .replaceAll(RegExp('[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
   }
 
@@ -441,11 +441,11 @@ class _CreateTemplateDialogState extends State<CreateTemplateDialog> {
 
     final width = position.width
         .clamp(_minSlotSize, canvasWidth)
-        .toDouble();
+        ;
 
     final height = position.height
         .clamp(_minSlotSize, canvasHeight)
-        .toDouble();
+        ;
 
     final x = position.x
         .clamp(0.0, math.max(0.0, canvasWidth - width))
@@ -1279,7 +1279,7 @@ class _CreateTemplateDialogState extends State<CreateTemplateDialog> {
                       File(_backgroundPath!),
                       fit: BoxFit.fill,
                     )
-                  : Container(
+                  : ColoredBox(
                       color: Colors.white,
                       child: const Center(
                         child: Text(
@@ -1407,7 +1407,7 @@ class _CreateTemplateDialogState extends State<CreateTemplateDialog> {
             child:
                 Transform.rotate(
               angle: rotation,
-              child: Container(
+              child: DecoratedBox(
                 decoration:
                     BoxDecoration(
                   color: Colors.black
@@ -2228,7 +2228,7 @@ class _CreateTemplateDialogState extends State<CreateTemplateDialog> {
 
                   Expanded(
                     child:
-                        Container(
+                        DecoratedBox(
                       decoration:
                           BoxDecoration(
                         color:
