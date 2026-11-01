@@ -17,9 +17,9 @@ dependencies:
   # UI
   animations: 3.0.0
   auto_size_text: 3.0.0
-  fluent_ui: 4.16.1
+  fluent_ui: 4.17.0
   go_router: 18.0.1
-  flutter_svg: 2.3.0
+  flutter_svg: 2.3.2
   animated_text_kit: 4.3.0
   flutter_scroll_shadow: 1.2.6
   flutter_layout_grid: 2.0.8
@@ -31,18 +31,18 @@ dependencies:
   smooth_scroll_multiplatform: 1.0.8
   widgetbook: 3.25.0
   widgetbook_annotation: 3.11.0
-  lucide_icons_flutter: 3.1.18
+  lucide_icons_flutter: 4.0.1
   wizard_router: 1.4.1
   theme_tailor_annotation: 4.0.0
-  google_fonts: 8.2.1
+  google_fonts: 9.0.0
   twinkling_stars: 1.0.3
 
   # Printscreen/Image processing
   screenshot: 3.0.0
 
   # MVC
-  mobx: 2.6.1
-  flutter_mobx: 2.3.0
+  mobx: 2.7.0
+  flutter_mobx: 2.4.0
 
   # Models
   freezed_annotation: 3.1.0
@@ -54,8 +54,8 @@ dependencies:
   flutter_rust_bridge: 2.13.0
 
   # Printing
-  printing: 5.15.0
-  pdf: 3.13.0
+  printing: 5.15.1
+  pdf: 3.13.1
 
   # System
   path_provider: 2.1.6
@@ -65,34 +65,34 @@ dependencies:
   win32: 5.15.0
 
   # Log and error handling
-  talker: 5.1.20
+  talker: 5.2.0
   talker_flutter: 5.1.16
-  sentry_flutter: 9.29.0
+  sentry_flutter: 10.2.0
   stack_trace: 1.12.2
 
   # Storage
-  flutter_secure_storage: 10.3.1
+  flutter_secure_storage: 10.3.4
   toml: 0.18.0
 
   # Networking
   http: 1.6.0
   http_parser: 4.1.2
-  mqtt5_client: 5.0.0
+  mqtt5_client: 5.1.0
 
   # Misc
-  get_it: 9.2.1
+  get_it: 9.3.0
   meta: any
-  synchronized: 3.4.1+2
+  synchronized: 3.5.0
   collection: any
   dart_casing: 3.0.1
   package_info_plus: 9.0.1
   lemberfpsmonitor: 0.0.3+6
-  crypto: 3.0.7
+  crypto: 3.0.8
   draggable_scrollbar:
     git: https://github.com/momentobooth/flutter-draggable-scrollbar
   csslib: 1.0.2
   args: 2.7.0
-  url_launcher: 6.3.2
+  url_launcher: 6.3.3
   super_clipboard: 0.9.1
   super_drag_and_drop: 0.9.1
   wakelock_plus: 1.5.2
@@ -104,14 +104,14 @@ dev_dependencies:
   theme_tailor: 4.0.1
 
   # MVC
-  mobx_codegen: 2.7.8
+  mobx_codegen: 2.8.0
 
   # Code quality
   flutter_lints: 6.0.0
 
   # Models
   freezed: 4.0.1
-  json_serializable: 6.14.1
+  json_serializable: 6.15.2
 
   # Code generation
   build_runner: 2.16.1
