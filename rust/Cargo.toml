@@ -13,7 +13,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 chrono = "0.4.45"
 image = { version = "0.25.10", features = ["rayon"] }
-ipp = { version = "7.0.0", default-features = false, features = ["async-client-tls", "log"] }
+ipp = { version = "8.0.0", default-features = false, features = ["async-client-tls", "log"] }
 zune-jpeg = "0.5.15"
 jpeg-encoder = "0.7.1"
 dlopen = "0.1.8"
@@ -32,7 +32,7 @@ num-derive = "0.5.1"
 regex = "1.13.1"
 log = "0.4.34"
 nokhwa = { git = "https://github.com/l1npengtul/nokhwa.git", branch = "0.10", features = ["input-native", "output-threaded"] }
-parking_lot = "0.12.5"
+parking_lot = "0.13.0"
 susync = "0.2.0"
 rustc_version_runtime = "0.3.0"
 libc = "0.2.189"
